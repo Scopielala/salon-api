@@ -1,0 +1,136 @@
+{
+  "info": {
+    "name": "Salon API",
+    "description": "Phase 6 manual test pass \u2014 Barbers, Services, Service Records.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" }
+  ],
+  "item": [
+    {
+      "name": "Barbers",
+      "item": [
+        { "name": "List all barbers", "request": { "method": "GET", "url": "{{baseUrl}}/barbers" } },
+        { "name": "Get barber by id", "request": { "method": "GET", "url": "{{baseUrl}}/barbers/1" } },
+        { "name": "Get barber - not found (expect 404)", "request": { "method": "GET", "url": "{{baseUrl}}/barbers/999" } },
+        {
+          "name": "Create barber",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Emeka\"\n}" },
+            "url": "{{baseUrl}}/barbers"
+          }
+        },
+        {
+          "name": "Create barber - duplicate name (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Emeka\"\n}" },
+            "url": "{{baseUrl}}/barbers"
+          }
+        },
+        {
+          "name": "Deactivate barber",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"isActive\": false\n}" },
+            "url": "{{baseUrl}}/barbers/1"
+          }
+        },
+        {
+          "name": "Delete barber with records (expect 409)",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/barbers/1" }
+        }
+      ]
+    },
+    {
+      "name": "Services",
+      "item": [
+        { "name": "List all services", "request": { "method": "GET", "url": "{{baseUrl}}/services" } },
+        { "name": "Get service by id", "request": { "method": "GET", "url": "{{baseUrl}}/services/1" } },
+        {
+          "name": "Create service",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Beard Trim\",\n  \"defaultPrice\": 1000\n}" },
+            "url": "{{baseUrl}}/services"
+          }
+        },
+        {
+          "name": "Create service - negative price (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Bad Service\",\n  \"defaultPrice\": -500\n}" },
+            "url": "{{baseUrl}}/services"
+          }
+        },
+        {
+          "name": "Create service - non-numeric price (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Bad Service 2\",\n  \"defaultPrice\": \"abc\"\n}" },
+            "url": "{{baseUrl}}/services"
+          }
+        },
+        {
+          "name": "Delete service with records (expect 409)",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/services/1" }
+        }
+      ]
+    },
+    {
+      "name": "Service Records",
+      "item": [
+        { "name": "List all service records", "request": { "method": "GET", "url": "{{baseUrl}}/service-records" } },
+        { "name": "Get service record by id", "request": { "method": "GET", "url": "{{baseUrl}}/service-records/1" } },
+        {
+          "name": "Create record - explicit amount (Haircut)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"barberId\": 1,\n  \"serviceId\": 1,\n  \"amountPaid\": 1500\n}" },
+            "url": "{{baseUrl}}/service-records"
+          }
+        },
+        {
+          "name": "Create record - same barber, Dye (default price)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"barberId\": 1,\n  \"serviceId\": 2\n}" },
+            "url": "{{baseUrl}}/service-records"
+          }
+        },
+        {
+          "name": "Create record - bad barberId (expect 404)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"barberId\": 999,\n  \"serviceId\": 1\n}" },
+            "url": "{{baseUrl}}/service-records"
+          }
+        },
+        {
+          "name": "Create record - bad serviceId (expect 404)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"barberId\": 1,\n  \"serviceId\": 999\n}" },
+            "url": "{{baseUrl}}/service-records"
+          }
+        },
+        {
+          "name": "Delete service record",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/service-records/1" }
+        }
+      ]
+    }
+  ]
+}

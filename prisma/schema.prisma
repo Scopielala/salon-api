@@ -16,6 +16,7 @@ model Barber {
   id        Int      @id @default(autoincrement())
   name      String   @unique
   isActive  Boolean  @default(true)
+  appointments Appointment[]
   createdAt DateTime @default(now())
 
   serviceRecords ServiceRecord[]
@@ -27,9 +28,11 @@ model Service {
   id           Int      @id @default(autoincrement())
   name         String   @unique
   defaultPrice Decimal  @db.Decimal(10, 2)
+  defaultDurationMinutes Int  @default(30)
   createdAt    DateTime @default(now())
 
   serviceRecords ServiceRecord[]
+  appointmentServices AppointmentService[] // back-relation for the join table
 
   @@map("services")
 }
@@ -39,12 +42,91 @@ model ServiceRecord {
   barberId   Int
   serviceId  Int
   amountPaid Decimal  @db.Decimal(10, 2)
+  appointmentId Int? // not every service belongs to an appointment
   createdAt  DateTime @default(now())
 
   barber  Barber  @relation(fields: [barberId], references: [id], onDelete: Restrict)
   service Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
 
   @@index([barberId])
   @@index([serviceId])
   @@map("service_records")
+}
+
+model Staff {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("staff")
+  createdAt    DateTime @default(now())
+
+  @@map("staff")
+}
+
+model Client {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String   @unique
+  appointments Appointment[]
+  createdAt DateTime @default(now())
+
+  @@map("clients")
+}
+
+enum AppointmentStatus {
+  pending
+  confirmed
+  in_progress
+  completed
+  cancelled
+  no_show
+}
+
+model Appointment {
+  id              Int               @id @default(autoincrement())
+  clientId        Int
+  barberId        Int
+  scheduledAt     DateTime
+  // Both of these are snapshots, computed once when the appointment is created
+  // by summing the chosen services' defaults. booked services is immutable —
+  // nothing ever edits appointment.services after creation, so nothing can make
+  // these totals go stale. If that assumption ever changes, these need to
+  // become calculated-on-read instead, same reasoning used for ServiceRecord.
+  durationMinutes Int
+  totalPrice      Decimal           @db.Decimal(10, 2)
+  status          AppointmentStatus @default(pending)
+
+  cancellationReason String?
+  cancelledAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt // lets us audit exactly when a status actually changed, not just when the row was first made
+
+  client   Client               @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  barber   Barber               @relation(fields: [barberId], references: [id], onDelete: Restrict)
+  services AppointmentService[] // the actual services requested — can be more than one per visit now
+  // One appointment can now fulfil into SEVERAL ServiceRecords (one per service
+  // actually rendered).
+  serviceRecords ServiceRecord[]
+
+  @@index([clientId])
+  @@index([barberId])
+  @@index([scheduledAt]) // calendar/availability queries filter by date range constantly — this keeps that fast as the table grows
+  @@map("appointments")
+}
+
+// The join table that lets one appointment hold multiple services.
+// Each row = "this one service, at this one price, as part of that one appointment."
+model AppointmentService {
+  appointmentId  Int
+  serviceId      Int
+  priceAtBooking Decimal @db.Decimal(10, 2) // snapshot — protects past totals from future price changes, same idea as ServiceRecord.amountPaid
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade) // a join row has no meaning without its appointment — delete together
+  service     Service     @relation(fields: [serviceId], references: [id], onDelete: Restrict) // but never silently lose which service it was, even historically
+
+  @@id([appointmentId, serviceId]) // composite key — a service can't appear twice on the same appointment
+  @@map("appointment_services")
 }

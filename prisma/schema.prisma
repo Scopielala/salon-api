@@ -75,6 +75,21 @@ model Client {
   @@map("clients")
 }
 
+model RefreshSession {
+  id        Int       @id @default(autoincrement())
+  familyId  String
+  tokenHash String    @unique
+  type      String
+  subjectId Int
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([familyId])
+  @@index([type, subjectId])
+  @@map("refresh_sessions")
+}
+
 enum AppointmentStatus {
   pending
   confirmed
@@ -100,6 +115,8 @@ model Appointment {
 
   cancellationReason String?
   cancelledAt        DateTime?
+  notes              String?
+  completedAt        DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt // lets us audit exactly when a status actually changed, not just when the row was first made

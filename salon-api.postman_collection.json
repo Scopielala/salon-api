@@ -1,134 +1,2318 @@
 {
   "info": {
     "name": "Salon API",
-    "description": "Phase 6 manual test pass \u2014 Barbers, Services, Service Records.",
+    "description": "End-to-end collection for the Salon API (internal staff API + public client API). Edit the admin credentials in Auth > Staff login, check barberId/serviceId1/serviceId2 point at real seeded rows, then run the collection top to bottom with the Collection Runner.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:3000" }
+    {
+      "key": "host",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "baseUrl",
+      "value": "{{host}}/api/v1"
+    },
+    {
+      "key": "clientLoginUrl",
+      "value": "{{baseUrl}}/public/clients/login"
+    },
+    {
+      "key": "clientProfileUrl",
+      "value": "{{baseUrl}}/public/clients/getprofile"
+    },
+    {
+      "key": "barberId",
+      "value": "1"
+    },
+    {
+      "key": "serviceId1",
+      "value": "1"
+    },
+    {
+      "key": "serviceId2",
+      "value": "2"
+    },
+    {
+      "key": "staffToken",
+      "value": ""
+    },
+    {
+      "key": "clientToken",
+      "value": ""
+    },
+    {
+      "key": "nonAdminToken",
+      "value": ""
+    },
+    {
+      "key": "runId",
+      "value": ""
+    },
+    {
+      "key": "futureDate",
+      "value": ""
+    },
+    {
+      "key": "pastDate",
+      "value": ""
+    },
+    {
+      "key": "tempBarberId",
+      "value": ""
+    },
+    {
+      "key": "tempServiceId",
+      "value": ""
+    },
+    {
+      "key": "recordId",
+      "value": ""
+    },
+    {
+      "key": "appointmentId",
+      "value": ""
+    },
+    {
+      "key": "appointmentId2",
+      "value": ""
+    },
+    {
+      "key": "staffRefreshToken",
+      "value": ""
+    },
+    {
+      "key": "clientRefreshToken",
+      "value": ""
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{staffToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get(\"runId\")) { pm.collectionVariables.set(\"runId\", Date.now()); }",
+          "pm.collectionVariables.set(\"futureDate\", new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString());",
+          "pm.collectionVariables.set(\"pastDate\", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());"
+        ]
+      }
+    }
   ],
   "item": [
     {
-      "name": "Barbers",
+      "name": "Health",
       "item": [
-        { "name": "List all barbers", "request": { "method": "GET", "url": "{{baseUrl}}/barbers" } },
-        { "name": "Get barber by id", "request": { "method": "GET", "url": "{{baseUrl}}/barbers/1" } },
-        { "name": "Get barber - not found (expect 404)", "request": { "method": "GET", "url": "{{baseUrl}}/barbers/999" } },
         {
-          "name": "Create barber",
+          "name": "Health check (unversioned, public)",
+          "request": {
+            "method": "GET",
+            "url": "{{host}}/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Staff login (admin) - saves staffToken and staffRefreshToken",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Emeka\"\n}" },
+            "url": "{{baseUrl}}/auth/staff/login",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@salon.com\",\n  \"password\": \"your-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Edit the email/password to your bootstrapped admin account, run this once, and every staff request is authenticated."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set(\"staffToken\", pm.response.json().token);",
+                  "  pm.collectionVariables.set(\"staffRefreshToken\", pm.response.json().refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Staff refresh - rotates staff tokens",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/staff/refresh",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{staffRefreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set(\"staffToken\", pm.response.json().token);",
+                  "  pm.collectionVariables.set(\"staffRefreshToken\", pm.response.json().refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Staff login - wrong password (expect 401)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/staff/login",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@salon.com\",\n  \"password\": \"definitely-wrong\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Staff login - missing fields (expect 400)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/staff/login",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@salon.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Staff (admin only)",
+      "item": [
+        {
+          "name": "List staff",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/staff"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create staff (non-admin)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/staff",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Staff\",\n  \"email\": \"staff-{{runId}}@salon.com\",\n  \"password\": \"password123\",\n  \"role\": \"staff\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.test(\"No passwordHash leaked\", function () { pm.expect(pm.response.json()).to.not.have.property(\"passwordHash\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create staff - duplicate email (expect 409)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/staff",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Staff\",\n  \"email\": \"staff-{{runId}}@salon.com\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create staff - short password (expect 400)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/staff",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad\",\n  \"email\": \"bad-{{runId}}@salon.com\",\n  \"password\": \"short\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Staff login (non-admin) - saves nonAdminToken",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/staff/login",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"staff-{{runId}}@salon.com\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set(\"nonAdminToken\", pm.response.json().token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List staff as non-admin (expect 403)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/staff",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{nonAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Barbers",
+      "item": [
+        {
+          "name": "List barbers",
+          "request": {
+            "method": "GET",
             "url": "{{baseUrl}}/barbers"
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List barbers - no token (expect 401)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/barbers",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get barber by id",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/barbers/{{barberId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get barber - not found (expect 404)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/barbers/999999"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create temp barber - saves tempBarberId",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/barbers",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Temp Barber {{runId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set(\"tempBarberId\", pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Create barber - duplicate name (expect 409)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Emeka\"\n}" },
-            "url": "{{baseUrl}}/barbers"
-          }
+            "url": "{{baseUrl}}/barbers",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Temp Barber {{runId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "Deactivate barber",
+          "name": "Create barber - empty name (expect 400)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/barbers",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"   \"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deactivate temp barber",
           "request": {
             "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"isActive\": false\n}" },
-            "url": "{{baseUrl}}/barbers/1"
-          }
+            "url": "{{baseUrl}}/barbers/{{tempBarberId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"isActive is false\", function () { pm.expect(pm.response.json().isActive).to.eql(false); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Delete barber with records (expect 409)",
-          "request": { "method": "DELETE", "url": "{{baseUrl}}/barbers/1" }
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/barbers/{{barberId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete barber as non-admin (expect 403)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/barbers/{{barberId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{nonAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
     {
       "name": "Services",
       "item": [
-        { "name": "List all services", "request": { "method": "GET", "url": "{{baseUrl}}/services" } },
-        { "name": "Get service by id", "request": { "method": "GET", "url": "{{baseUrl}}/services/1" } },
         {
-          "name": "Create service",
+          "name": "List services",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/services"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get service by id",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/services/{{serviceId1}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create temp service - saves tempServiceId",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Beard Trim\",\n  \"defaultPrice\": 1000\n}" },
-            "url": "{{baseUrl}}/services"
-          }
+            "url": "{{baseUrl}}/services",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Temp Service {{runId}}\",\n  \"defaultPrice\": 1000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set(\"tempServiceId\", pm.response.json().id);",
+                  "}",
+                  "pm.test(\"defaultPrice is a string (Decimal)\", function () { pm.expect(pm.response.json().defaultPrice).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create service - duplicate name (expect 409)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/services",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Temp Service {{runId}}\",\n  \"defaultPrice\": 1000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Create service - negative price (expect 400)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Bad Service\",\n  \"defaultPrice\": -500\n}" },
-            "url": "{{baseUrl}}/services"
-          }
+            "url": "{{baseUrl}}/services",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad Service A {{runId}}\",\n  \"defaultPrice\": -500\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Create service - non-numeric price (expect 400)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Bad Service 2\",\n  \"defaultPrice\": \"abc\"\n}" },
-            "url": "{{baseUrl}}/services"
-          }
+            "url": "{{baseUrl}}/services",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad Service B {{runId}}\",\n  \"defaultPrice\": \"abc\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update temp service price",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/services/{{tempServiceId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"defaultPrice\": 1200\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Delete service with records (expect 409)",
-          "request": { "method": "DELETE", "url": "{{baseUrl}}/services/1" }
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/services/{{serviceId1}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
     {
       "name": "Service Records",
       "item": [
-        { "name": "List all service records", "request": { "method": "GET", "url": "{{baseUrl}}/service-records" } },
-        { "name": "Get service record by id", "request": { "method": "GET", "url": "{{baseUrl}}/service-records/1" } },
         {
-          "name": "Create record - explicit amount (Haircut)",
+          "name": "List service records",
           "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"barberId\": 1,\n  \"serviceId\": 1,\n  \"amountPaid\": 1500\n}" },
+            "method": "GET",
             "url": "{{baseUrl}}/service-records"
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "Create record - same barber, Dye (default price)",
+          "name": "Create record - explicit amount - saves recordId",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"barberId\": 1,\n  \"serviceId\": 2\n}" },
-            "url": "{{baseUrl}}/service-records"
-          }
+            "url": "{{baseUrl}}/service-records",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barberId\": {{barberId}},\n  \"serviceId\": {{serviceId1}},\n  \"amountPaid\": 1500\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set(\"recordId\", pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create record - omit amount, uses default price",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/service-records",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barberId\": {{barberId}},\n  \"serviceId\": {{serviceId2}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get record by id (nested barber + service)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/service-records/{{recordId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Has nested barber and service\", function () { const r = pm.response.json(); pm.expect(r.barber).to.be.an(\"object\"); pm.expect(r.service).to.be.an(\"object\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update record amount",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/service-records/{{recordId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amountPaid\": 1600\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Create record - bad barberId (expect 404)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"barberId\": 999,\n  \"serviceId\": 1\n}" },
-            "url": "{{baseUrl}}/service-records"
-          }
+            "url": "{{baseUrl}}/service-records",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barberId\": 999999,\n  \"serviceId\": {{serviceId1}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Create record - bad serviceId (expect 404)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"barberId\": 1,\n  \"serviceId\": 999\n}" },
-            "url": "{{baseUrl}}/service-records"
-          }
+            "url": "{{baseUrl}}/service-records",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barberId\": {{barberId}},\n  \"serviceId\": 999999\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "Delete service record",
-          "request": { "method": "DELETE", "url": "{{baseUrl}}/service-records/1" }
+          "name": "Delete record",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/service-records/{{recordId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Public - Clients",
+      "item": [
+        {
+          "name": "Client login (new or returning) - saves clientToken and clientRefreshToken",
+          "request": {
+            "method": "POST",
+            "url": "{{clientLoginUrl}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"08031234567\",\n  \"name\": \"Test Client\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set(\"clientToken\", pm.response.json().token);",
+                  "  pm.collectionVariables.set(\"clientRefreshToken\", pm.response.json().refreshToken);",
+                  "}",
+                  "pm.test(\"Phone normalized to E.164\", function () { pm.expect(pm.response.json().client.phone).to.eql(\"+2348031234567\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Client login - same phone, different format and name (original name kept)",
+          "request": {
+            "method": "POST",
+            "url": "{{clientLoginUrl}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"0803 123 4567\",\n  \"name\": \"Someone Else\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set(\"clientToken\", pm.response.json().token);",
+                  "  pm.collectionVariables.set(\"clientRefreshToken\", pm.response.json().refreshToken);",
+                  "}",
+                  "pm.test(\"Original name kept\", function () { pm.expect(pm.response.json().client.name).to.eql(\"Test Client\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Client refresh - rotates client tokens",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/public/clients/refresh",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{clientRefreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set(\"clientToken\", pm.response.json().token);",
+                  "  pm.collectionVariables.set(\"clientRefreshToken\", pm.response.json().refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Client login - new phone, no name (expect 400)",
+          "request": {
+            "method": "POST",
+            "url": "{{clientLoginUrl}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"08099999999\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Client login - invalid phone (expect 400)",
+          "request": {
+            "method": "POST",
+            "url": "{{clientLoginUrl}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get client profile",
+          "request": {
+            "method": "GET",
+            "url": "{{clientProfileUrl}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get client profile - no token (expect 401)",
+          "request": {
+            "method": "GET",
+            "url": "{{clientProfileUrl}}",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get client profile - staff token (expect 401)",
+          "request": {
+            "method": "GET",
+            "url": "{{clientProfileUrl}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{staffToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Proves the two identity domains cannot be mixed: a valid staff token is rejected on a client route."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{clientToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Public - Appointments",
+      "item": [
+        {
+          "name": "Book appointment (2 services) - saves appointmentId",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/public/appointments",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barberId\": {{barberId}},\n  \"serviceIds\": [{{serviceId1}}, {{serviceId2}}],\n  \"scheduledAt\": \"{{futureDate}}\",\n  \"notes\": \"Sensitive scalp, please go easy\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set(\"appointmentId\", pm.response.json().id);",
+                  "}",
+                  "pm.test(\"Status starts as pending\", function () { pm.expect(pm.response.json().status).to.eql(\"pending\"); });",
+                  "pm.test(\"Two services attached\", function () { pm.expect(pm.response.json().services.length).to.eql(2); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Book second appointment (for cancel flow) - saves appointmentId2",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/public/appointments",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barberId\": {{barberId}},\n  \"serviceIds\": [{{serviceId1}}],\n  \"scheduledAt\": \"{{futureDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set(\"appointmentId2\", pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Book - past date (expect 400)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/public/appointments",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barberId\": {{barberId}},\n  \"serviceIds\": [{{serviceId1}}],\n  \"scheduledAt\": \"{{pastDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Book - inactive barber (expect 400)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/public/appointments",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barberId\": {{tempBarberId}},\n  \"serviceIds\": [{{serviceId1}}],\n  \"scheduledAt\": \"{{futureDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Book - nonexistent service (expect 404)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/public/appointments",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barberId\": {{barberId}},\n  \"serviceIds\": [{{serviceId1}}, 999999],\n  \"scheduledAt\": \"{{futureDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Book - empty serviceIds (expect 400)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/public/appointments",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barberId\": {{barberId}},\n  \"serviceIds\": [],\n  \"scheduledAt\": \"{{futureDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Book - no token (expect 401)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/public/appointments",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barberId\": {{barberId}},\n  \"serviceIds\": [{{serviceId1}}],\n  \"scheduledAt\": \"{{futureDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Book - staff token (expect 401)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/public/appointments",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barberId\": {{barberId}},\n  \"serviceIds\": [{{serviceId1}}],\n  \"scheduledAt\": \"{{futureDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{staffToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List my appointments",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/appointments"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{clientToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Appointments (staff)",
+      "item": [
+        {
+          "name": "List all appointments",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/appointments"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List all appointments - client token (expect 401)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/appointments",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{clientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update status - invalid value (expect 400)",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/appointments/{{appointmentId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"banana\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update status - completed via PUT is blocked (expect 400)",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/appointments/{{appointmentId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "'completed' is only reachable through the completion flow, never a generic status update."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Completion draft on a pending appointment (expect 409)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/appointments/{{appointmentId2}}/completion-draft"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel second appointment with reason",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/appointments/{{appointmentId2}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"cancelled\",\n  \"cancellationReason\": \"Client rescheduled\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"cancelledAt is set\", function () { pm.expect(pm.response.json().cancelledAt).to.not.eql(null); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Complete a cancelled appointment (expect 409)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/appointments/{{appointmentId2}}/complete"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Confirm first appointment",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/appointments/{{appointmentId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"confirmed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Completion draft (read-only preview)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/appointments/{{appointmentId}}/completion-draft"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Draft lists both services\", function () { pm.expect(pm.response.json().records.length).to.eql(2); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Complete appointment with a price adjustment",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/appointments/{{appointmentId}}/complete",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adjustments\": [\n    { \"serviceId\": {{serviceId1}}, \"amountPaid\": 1800 }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Status is completed\", function () { pm.expect(pm.response.json().status).to.eql(\"completed\"); });",
+                  "pm.test(\"completedAt is set\", function () { pm.expect(pm.response.json().completedAt).to.not.eql(null); });",
+                  "pm.test(\"Two ServiceRecords created\", function () { pm.expect(pm.response.json().serviceRecords.length).to.eql(2); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Complete again (expect 409)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/appointments/{{appointmentId}}/complete"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change status of a completed appointment (expect 409)",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/appointments/{{appointmentId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"confirmed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Complete - appointment not found (expect 404)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/appointments/999999/complete"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Complete - client token (expect 401)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/appointments/{{appointmentId}}/complete",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{clientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify ServiceRecords exist after completion",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/service-records"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "item": [
+        {
+          "name": "Delete temp barber",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/barbers/{{tempBarberId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete temp service",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/services/{{tempServiceId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Removes the temp barber and service created during the run so reruns start clean."
+    },
+    {
+      "name": "Session logout (runs last)",
+      "description": "Logout requests run after the other collection requests so they do not interrupt authenticated steps.",
+      "item": [
+        {
+          "name": "Staff logout - revoke refresh session",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/staff/logout",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{staffRefreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });",
+                  "if (pm.response.code === 204) {",
+                  "  pm.collectionVariables.set(\"staffToken\", \"\");",
+                  "  pm.collectionVariables.set(\"staffRefreshToken\", \"\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Client logout - revoke refresh session",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/public/clients/logout",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{clientRefreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });",
+                  "if (pm.response.code === 204) {",
+                  "  pm.collectionVariables.set(\"clientToken\", \"\");",
+                  "  pm.collectionVariables.set(\"clientRefreshToken\", \"\");",
+                  "}"
+                ]
+              }
+            }
+          ]
         }
       ]
     }

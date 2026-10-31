@@ -23,5 +23,17 @@ export function createAppointmentController(appointmentService) {
       const appointment = await appointmentService.updateStatus(id, req.body);
       res.json(appointment);
     }),
+
+    completionDraft: catchAsync(async (req, res) => {
+  const id = Number(req.params.id);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid appointment id' });
+  res.json(await appointmentService.getCompletionDraft(id));
+}),
+
+complete: catchAsync(async (req, res) => {
+  const id = Number(req.params.id);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid appointment id' });
+  res.json(await appointmentService.completeAppointment(id, req.body));
+}),
   };
 }

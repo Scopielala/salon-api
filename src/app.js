@@ -15,10 +15,12 @@ app.get('/health', async (req, res) => {
   res.json({ status: 'ok', barbers: barberCount });
 });
 
+// Global Route Error Handler
 app.use((req, res) => {
   res.status(404).json({ error: `Route ${req.method} ${req.originalUrl} not found` });
 });
 
+// Global Error Handler
 app.use((err, req, res, next) => {
   if (err.type === 'entity.parse.failed') {
     return res.status(400).json({ error: 'Invalid JSON in request body' });

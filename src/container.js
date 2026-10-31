@@ -17,6 +17,8 @@ import { createStaffService } from './services/staff.service.js';
 import { createStaffController } from './controllers/staff.controller.js';
 import { createAuthService } from './services/auth.service.js';
 import { createAuthController } from './controllers/auth.controller.js';
+import { createRefreshSessionRepository } from './repositories/refreshSession.repository.js';
+import { createRefreshTokenService } from './services/refreshToken.service.js';
 
 import { createClientRepository } from './repositories/client.repository.js';
 import { createClientService } from './services/client.service.js';
@@ -47,16 +49,23 @@ const staffRepository = createStaffRepository(prisma);
 const staffService = createStaffService(staffRepository);
 const staffController = createStaffController(staffService);
 
-const authService = createAuthService(staffRepository);
+const refreshSessionRepository = createRefreshSessionRepository(prisma);
+const refreshTokenService = createRefreshTokenService(refreshSessionRepository);
+
+const authService = createAuthService(staffRepository, refreshTokenService);
 const authController = createAuthController(authService);
 
 const clientRepository = createClientRepository(prisma);
-const clientService = createClientService(clientRepository);
+const clientService = createClientService(clientRepository, refreshTokenService);
 const clientController = createClientController(clientService);
 
 const appointmentRepository = createAppointmentRepository(prisma);
-const appointmentService = createAppointmentService(appointmentRepository);
-const appointmentController = createAppointmentController(appointmentService);``
+const appointmentService = createAppointmentService(
+  appointmentRepository,
+  barberRepository,
+  serviceRepository
+);
+const appointmentController = createAppointmentController(appointmentService);
 
 export const container = {
   barberController,

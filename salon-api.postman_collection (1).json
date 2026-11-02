@@ -1,0 +1,217 @@
+{
+  "info": {
+    "name": "Salon API",
+    "description": "Full collection: auth, barbers, services, service records. Log in once \u2014 the token is captured automatically and reused everywhere else.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "host", "value": "http://localhost:3000" },
+    { "key": "baseUrl", "value": "{{host}}/api/v1" },
+    { "key": "token", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health check (unversioned, public)",
+          "request": { "method": "GET", "url": "{{host}}/health", "auth": { "type": "noauth" } }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Staff login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('token', body.token);",
+                  "  console.log('Token saved to collection variable.');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@salon.com\",\n  \"password\": \"your-password\"\n}" },
+            "url": "{{baseUrl}}/auth/staff/login",
+            "auth": { "type": "noauth" }
+          }
+        },
+        {
+          "name": "Staff login - wrong password (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@salon.com\",\n  \"password\": \"wrong-password\"\n}" },
+            "url": "{{baseUrl}}/auth/staff/login",
+            "auth": { "type": "noauth" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff (admin only)",
+      "item": [
+        { "name": "List staff", "request": { "method": "GET", "url": "{{baseUrl}}/staff" } },
+        {
+          "name": "Create staff",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"New Staff\",\n  \"email\": \"newstaff@salon.com\",\n  \"password\": \"password123\",\n  \"role\": \"staff\"\n}" },
+            "url": "{{baseUrl}}/staff"
+          }
+        },
+        {
+          "name": "Create staff - duplicate email (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"New Staff\",\n  \"email\": \"newstaff@salon.com\",\n  \"password\": \"password123\"\n}" },
+            "url": "{{baseUrl}}/staff"
+          }
+        },
+        {
+          "name": "Create staff - short password (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Bad\",\n  \"email\": \"bad@salon.com\",\n  \"password\": \"short\"\n}" },
+            "url": "{{baseUrl}}/staff"
+          }
+        },
+        { "name": "List staff as non-admin (expect 403)", "request": { "method": "GET", "url": "{{baseUrl}}/staff" } }
+      ]
+    },
+    {
+      "name": "Barbers",
+      "item": [
+        { "name": "List all barbers", "request": { "method": "GET", "url": "{{baseUrl}}/barbers" } },
+        { "name": "List barbers - no token (expect 401)", "request": { "method": "GET", "url": "{{baseUrl}}/barbers", "auth": { "type": "noauth" } } },
+        { "name": "Get barber by id", "request": { "method": "GET", "url": "{{baseUrl}}/barbers/1" } },
+        { "name": "Get barber - not found (expect 404)", "request": { "method": "GET", "url": "{{baseUrl}}/barbers/999" } },
+        {
+          "name": "Create barber",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Emeka\"\n}" },
+            "url": "{{baseUrl}}/barbers"
+          }
+        },
+        {
+          "name": "Create barber - duplicate name (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Emeka\"\n}" },
+            "url": "{{baseUrl}}/barbers"
+          }
+        },
+        {
+          "name": "Deactivate barber",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"isActive\": false\n}" },
+            "url": "{{baseUrl}}/barbers/1"
+          }
+        },
+        { "name": "Delete barber with records (expect 409)", "request": { "method": "DELETE", "url": "{{baseUrl}}/barbers/1" } },
+        { "name": "Delete barber as non-admin (expect 403)", "request": { "method": "DELETE", "url": "{{baseUrl}}/barbers/2" } }
+      ]
+    },
+    {
+      "name": "Services",
+      "item": [
+        { "name": "List all services", "request": { "method": "GET", "url": "{{baseUrl}}/services" } },
+        { "name": "Get service by id", "request": { "method": "GET", "url": "{{baseUrl}}/services/1" } },
+        {
+          "name": "Create service",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Beard Trim\",\n  \"defaultPrice\": 1000\n}" },
+            "url": "{{baseUrl}}/services"
+          }
+        },
+        {
+          "name": "Create service - negative price (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Bad Service\",\n  \"defaultPrice\": -500\n}" },
+            "url": "{{baseUrl}}/services"
+          }
+        },
+        {
+          "name": "Create service - non-numeric price (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Bad Service 2\",\n  \"defaultPrice\": \"abc\"\n}" },
+            "url": "{{baseUrl}}/services"
+          }
+        },
+        { "name": "Delete service with records (expect 409)", "request": { "method": "DELETE", "url": "{{baseUrl}}/services/1" } }
+      ]
+    },
+    {
+      "name": "Service Records",
+      "item": [
+        { "name": "List all service records", "request": { "method": "GET", "url": "{{baseUrl}}/service-records" } },
+        { "name": "Get service record by id", "request": { "method": "GET", "url": "{{baseUrl}}/service-records/1" } },
+        {
+          "name": "Create record - explicit amount (Haircut)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"barberId\": 1,\n  \"serviceId\": 1,\n  \"amountPaid\": 1500\n}" },
+            "url": "{{baseUrl}}/service-records"
+          }
+        },
+        {
+          "name": "Create record - same barber, Dye (default price)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"barberId\": 1,\n  \"serviceId\": 2\n}" },
+            "url": "{{baseUrl}}/service-records"
+          }
+        },
+        {
+          "name": "Create record - bad barberId (expect 404)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"barberId\": 999,\n  \"serviceId\": 1\n}" },
+            "url": "{{baseUrl}}/service-records"
+          }
+        },
+        {
+          "name": "Create record - bad serviceId (expect 404)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"barberId\": 1,\n  \"serviceId\": 999\n}" },
+            "url": "{{baseUrl}}/service-records"
+          }
+        },
+        { "name": "Delete service record", "request": { "method": "DELETE", "url": "{{baseUrl}}/service-records/1" } }
+      ]
+    }
+  ]
+}

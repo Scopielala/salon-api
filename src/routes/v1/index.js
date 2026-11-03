@@ -19,6 +19,8 @@ export function createV1Router({ barberController, serviceController, serviceRec
   router.use('/service-records', requireStaffAuth, createServiceRecordRouter(serviceRecordController));
   // Protected - admin only, for the whole resource
   router.use('/staff', requireStaffAuth, requireRole('admin'), createStaffRouter(staffController));
+  
+  
   // Client routes
   router.use('/public/clients', createClientRouter(clientController));
   // Staff-Appointment routes
